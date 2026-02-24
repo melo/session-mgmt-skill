@@ -1,5 +1,7 @@
 # session-mgmt
 
+> **ALPHA SOFTWARE.** This skill was just extracted from a single project where it has been used daily. We are still tweaking it to work reliably across different projects, languages, and environments. **Do not assume this is tested and working** — expect rough edges, missing features, and breaking changes. Contributions and bug reports are welcome.
+
 **An agent skill for structured development sessions with braindump, planning, and implementation phases using git worktrees.**
 
 Dump your ideas freely, plan collaboratively, implement with TDD, merge cleanly. Every session produces committed documentation (spec, plan, implementation report) and an isolated git worktree so parallel sessions never interfere.
@@ -85,13 +87,11 @@ When you approve the plan, the agent automatically:
 #### 4. End the session
 
 Say "end session". This:
-- Generates an **implementation report** (committed alongside spec and plan)
+- Generates an **implementation report** with timing and commit links
+- Copies the session's `state.json` into the docs folder (committed alongside spec, plan, and report)
 - Merges the branch back to `main`
-- Pushes to origin
 - Reports time breakdown (planning vs implementation)
 - Cleans up the worktree
-
-Optional: say "end session and deploy" to trigger a production deployment after merging.
 
 #### Cancelling a session
 
@@ -101,15 +101,18 @@ At any point, say "cancel session" to abort without merging. This removes the wo
 
 | Command | What it does |
 |---------|-------------|
-| "daily changes" | Generate "changes to check" documents from git history. Catches up from the last document through today. Today's changes are marked as DRAFT. |
+| "daily changes" / "generate my changelog" | Generate "changes to check" documents from git history. Catches up from the last document through today. Today's changes are marked as DRAFT. |
 | "convert to PDF" / "pdf `<file>`" | Convert a Markdown file to a styled PDF with page breaks and page numbers. |
+| "refresh changelog-categories.yml" | Analyze the project structure and generate or refresh the `.claude/changelog-categories.yml` config file. |
 | "setup session management" | Install all Python and system dependencies required by the skill. |
 
 ### Project-specific configuration
 
 #### Category config for daily changes
 
-Create `.claude/changes-categories.yml` at your repo root to map file paths to category names:
+Create `.claude/changelog-categories.yml` at your repo root to map file paths to category names. You can generate one automatically by saying **"refresh changelog-categories.yml"** — the agent will analyze your project structure and produce a sensible default.
+
+Or write one manually:
 
 ```yaml
 Frontend:
@@ -143,10 +146,11 @@ SKILL.md (dispatch + shared concepts)
 commands/                 ← agent reads the matching command file
 ├── start-session.md      (create session, braindump phase)
 ├── implement.md          (branch, worktree, spec+plan commit, TDD)
-├── end-session.md        (report, merge, push, cleanup)
+├── end-session.md        (report, merge, cleanup)
 ├── cancel-session.md     (abort, cleanup)
 ├── daily-changes.md      (changelog generation)
 ├── pdf.md                (markdown → PDF conversion)
+├── refresh-changelog-categories.md  (infer category config from project)
 └── setup.md              (install dependencies)
     ↓
 scripts/                  ← executed by command files
@@ -176,11 +180,12 @@ Session folders are kept as historical records and auto-pruned after 6 months.
 
 ### The audit trail
 
-Every completed session produces three committed documents in `docs/implementation/<date>-<name>/`:
+Every completed session produces four committed files in `docs/implementation/<date>-<name>/`:
 
 1. **Spec** (`-spec.md`): What was built and why
 2. **Plan** (`-plan.md`): How it was built
 3. **Implementation report** (`-impl-report.md`): What actually happened — timing, commits, branch
+4. **Session state** (`state.json`): Raw session metadata with timestamps
 
 ## Design rationale
 
@@ -206,7 +211,7 @@ The `.code-sessions/<id>/state.json` file tracks timestamps, branch name, and ph
 - **Time awareness.** You can see how long planning took vs implementation. Over time, this reveals patterns.
 - **Implementation reports.** At the end of each session, a report is generated and committed alongside the spec and plan. This creates an audit trail.
 - **Historical record.** Session folders are kept (pruned after 6 months) so you can review past sessions.
-- **Centralized state.** Port files, scratch files, and session metadata all live in one place.
+- **Centralized state.** Scratch files and session metadata all live in one place.
 
 ### Why red/green TDD
 
@@ -215,10 +220,6 @@ The implement command mandates writing tests first. This isn't dogma — it's pr
 - **Spec-driven.** The spec and plan define behavior. Tests encode that behavior. Implementation satisfies the tests.
 - **Catches regressions early.** When the agent writes tests first, it validates its understanding of the requirements before writing implementation code.
 - **Confidence to refactor.** With tests already passing, you can restructure code knowing that behavior is preserved.
-
-### Why no PID scans
-
-When stopping servers, we only use the application's `/_/kill` endpoint — never PID-based process scanning. A PID scan might match and kill a server belonging to a different worktree running in the same container. An orphan server is harmless; a killed parallel session loses work.
 
 ### Why the draft system in daily-changes
 
@@ -233,7 +234,6 @@ When stopping servers, we only use the application's `/_/kill` endpoint — neve
 | Parallel development | Worktrees isolate sessions |
 | Time tracking | Automatic timestamps for each phase |
 | Audit trail | Spec + plan + report committed per feature |
-| Safe parallel servers | No PID scans, session-aware port files |
 | Catch-up friendly | Daily changes auto-generate for missing days |
 | Project-agnostic | Skill works in any git repository |
 | Customizable | Category config, path conventions overridable via CLAUDE.md |

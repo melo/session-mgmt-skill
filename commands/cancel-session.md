@@ -43,23 +43,7 @@ END_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ```
 Set `end_of_session_timestamp` to `$END_TS` in `state.json`.
 
-### 4. Server cleanup
-
-Check for a port file in the session folder:
-```bash
-PORT_FILE="<session-folder>/server-port"
-```
-If the file exists, read the port and try to stop the server:
-```bash
-PORT=$(cat "$PORT_FILE" | tr -d '[:space:]')
-curl -s --max-time 2 "http://localhost:${PORT}/_/kill"
-sleep 2
-```
-
-**IMPORTANT:** Use `/_/kill` ONLY. Do NOT fall back to PID scans. If `/_/kill` fails or times out, log it:
-> "Could not stop server on port $PORT via /_/kill — it may be an orphan."
-
-### 5. Worktree and branch cleanup (conditional)
+### 4. Worktree and branch cleanup (conditional)
 
 Read `branch` and `worktree_path` from `state.json`.
 
@@ -99,13 +83,13 @@ Read `branch` and `worktree_path` from `state.json`.
 
 **Case B: No worktree/branch** (phase was `braindump` or `planning`):
 
-Nothing to clean up. Proceed to step 6.
+Nothing to clean up. Proceed to step 5.
 
-### 6. Update session state
+### 5. Update session state
 
 Set `phase` to `"cancelled"` in `state.json`. Do NOT delete the session folder — it serves as a historical record.
 
-### 7. Prune old sessions
+### 6. Prune old sessions
 
 Scan `.code-sessions/` for folders where the `yyyymmdd` prefix in the folder name is older than 6 months. Delete those folders:
 ```bash
@@ -121,7 +105,7 @@ done
 
 Use `$MAIN_WORKSPACE` if it was set (Case A), otherwise use `$REPO_ROOT`.
 
-### 8. Print summary table
+### 7. Print summary table
 
 This MUST be the last thing output:
 
@@ -131,6 +115,5 @@ This MUST be the last thing output:
 | **Phase when cancelled** | `<ORIGINAL_PHASE>` |
 | **Branch deleted** | `<branch>` / No branch created |
 | **Worktree removed** | `<path>` / No worktree created |
-| **Server** | Stopped (port N) / Not running / Failed to stop |
 | **Sessions pruned** | N old sessions removed / None |
 | **Current state** | Back on `main` in `<workspace-path>` |

@@ -1,6 +1,6 @@
 Generate daily changelog documents from git history, with multi-day catch-up and a draft system for the current day.
 
-Works in any git repository. Project-specific category mappings can be defined in `.claude/changes-categories.yml`.
+Works in any git repository. Project-specific category mappings can be defined in `.claude/changelog-categories.yml`.
 
 ## Arguments
 
@@ -21,7 +21,7 @@ python3 ~/.claude/skills/session-mgmt-skill/scripts/collect_daily_changes.py $AR
 This script handles ALL mechanical work:
 - Collects git commits (numstat, stat, full messages)
 - Reads session state.json files and computes three time metrics (daily span, active time, total work)
-- Categorizes commits using `.claude/changes-categories.yml` and heuristics
+- Categorizes commits using `.claude/changelog-categories.yml` and heuristics
 - Generates session timeline SVGs
 - Formats sessions and commits tables
 - Produces one `<yyyymmdd>-data.md` file per date in `docs/changes/<yyyy>/`

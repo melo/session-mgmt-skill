@@ -502,8 +502,15 @@ def _assign_merge_sessions(
 
 
 def load_categories_config(repo_root: Path) -> dict[str, list[str]] | None:
-    """Load .claude/changes-categories.yml. Returns None if not found."""
-    config_path = repo_root / ".claude" / "changes-categories.yml"
+    """Load .claude/changelog-categories.yml. Returns None if not found.
+
+    Also checks the legacy name .claude/changes-categories.yml for
+    backwards compatibility.
+    """
+    config_path = repo_root / ".claude" / "changelog-categories.yml"
+    if not config_path.exists():
+        # Fallback to legacy name
+        config_path = repo_root / ".claude" / "changes-categories.yml"
     if not config_path.exists():
         return None
 

@@ -1,6 +1,6 @@
 Wrap up the current session: generate an implementation report, merge back to main, and clean up.
 
-Optional argument: `$ARGUMENTS` — if it contains the word "deploy" (e.g., user says `/end-session deploy` or "end session and deploy"), run the **Deploy to Production** phase after the session wrap-up but before the final summary table.
+No arguments required.
 
 ## Detect context
 
@@ -10,11 +10,7 @@ Optional argument: `$ARGUMENTS` — if it contains the word "deploy" (e.g., user
    REPO_ROOT=$(git rev-parse --show-toplevel)
    ```
 
-2. Check if deploy was requested:
-   - If `$ARGUMENTS` contains "deploy" (case-insensitive), set `DEPLOY_REQUESTED=true`
-   - Otherwise, set `DEPLOY_REQUESTED=false`
-
-3. If the current branch is **not** `main` (i.e., in a session worktree), go to **Session Wrap-Up**.
+2. If the current branch is **not** `main` (i.e., in a session worktree), go to **Session Wrap-Up**.
    If the current branch **is** `main`, go to **Main Workspace Wrap-Up**.
 
 ---
@@ -46,29 +42,13 @@ From `state.json`, compute:
 
 Format each as `Xh Ym`. If a timestamp is null, show "N/A" for that phase.
 
-### 4. Server cleanup
-
-Check for a port file in the session folder:
-```bash
-PORT_FILE="$REPO_ROOT/.code-sessions/current/server-port"
-```
-If the file exists, read the port and try to stop the server:
-```bash
-PORT=$(cat "$PORT_FILE" | tr -d '[:space:]')
-curl -s --max-time 2 "http://localhost:${PORT}/_/kill"
-sleep 2
-```
-
-**IMPORTANT:** Use `/_/kill` ONLY. Do NOT fall back to PID scans. Orphan servers are safer than accidentally killing a parallel session's server. If `/_/kill` fails or times out, log it:
-> "Could not stop server on port $PORT via /_/kill — it may be an orphan. Check manually if needed."
-
-### 5. Commit uncommitted changes
+### 4. Commit uncommitted changes
 
 Run `git status --porcelain`. If non-empty:
 - Stage relevant files and commit with a proper message
 - If unsure about any files, ask the user
 
-### 6. Generate implementation report
+### 5. Generate implementation report
 
 Before leaving the worktree, create the report file.
 
@@ -110,12 +90,26 @@ Parse it to get `https://github.com/<owner>/<repo>`. Handle both SSH (`git@githu
 | ... | ... |
 ```
 
-Commit this file:
-```
-docs: add implementation report for <session-name>
+### 6. Copy state.json to docs
+
+Copy the session's `state.json` into the same `docs/implementation/<yyyymmdd>-<session-name>/` directory so it is committed alongside the spec, plan, and report:
+```bash
+cp "$REPO_ROOT/.code-sessions/current/state.json" "<docs-path>/state.json"
 ```
 
-### 7. Switch to main and merge
+### 7. Commit report and state.json
+
+```bash
+git add docs/implementation/
+git commit -m "docs: add implementation report for <session-name>"
+```
+Use the project's commit authorship conventions if defined in CLAUDE.md.
+
+### 8. Update session state
+
+Set `phase` to `"done"` in `state.json`. Do NOT delete the session folder — it serves as a historical record.
+
+### 9. Switch to main and merge
 
 ```bash
 MAIN_WORKSPACE=<main-repo-root>  # from state.json or detect via git worktree list
@@ -133,23 +127,12 @@ git merge --no-ff <BRANCH> -m "merge session: <BRANCH>"
   3. "Abort merge and delete worktree anyway" — run `git merge --abort`, continue cleanup
 - If options 1 or 2 chosen, **stop** — do not remove worktree or branch
 
-### 8. Remove worktree and delete branch
+### 10. Remove worktree and delete branch
 
 ```bash
 git worktree remove --force <WORKTREE_PATH>
 git branch -d <BRANCH>
 ```
-
-### 9. Push main to origin
-
-```bash
-cd "$MAIN_WORKSPACE"
-git push origin main
-```
-
-### 10. Update session state
-
-Set `phase` to `"done"` in `state.json`. Do NOT delete the session folder — it serves as a historical record.
 
 ### 11. Prune old sessions
 
@@ -165,88 +148,7 @@ for dir in "$MAIN_WORKSPACE"/.code-sessions/*/; do
 done
 ```
 
-### 12. Deploy to production (conditional)
-
-**Skip this entire section if `DEPLOY_REQUESTED` is false.** Go straight to step 13 (Print summary table).
-
-If `DEPLOY_REQUESTED` is true, deploy the just-pushed code to production:
-
-#### 12a. Wait for GitHub Actions CI to build the Docker image
-
-The push to `main` in step 9 triggers the `Docker Build & Publish` workflow. The image must be built and pushed to `ghcr.io` before we can deploy.
-
-```bash
-# Get the SHA of the commit we just pushed (the merge commit on main)
-DEPLOY_SHA=$(git -C "$MAIN_WORKSPACE" rev-parse HEAD)
-SHORT_SHA=$(echo "$DEPLOY_SHA" | cut -c1-7)
-```
-
-Poll the workflow run status using `gh`:
-```bash
-# Find the workflow run triggered by our push
-gh run list --workflow=docker-publish.yml --branch=main --limit=5 --json databaseId,headSha,status,conclusion
-```
-
-Look for the run whose `headSha` matches `$DEPLOY_SHA`. Then watch it:
-```bash
-gh run watch <RUN_ID> --exit-status
-```
-
-This blocks until the run completes. If it **fails**:
-- Print the failure details: `gh run view <RUN_ID> --log-failed`
-- Warn the user: "CI build failed — deployment aborted. Fix the build and deploy manually."
-- Set `DEPLOY_STATUS="CI build failed"` and skip to the summary table.
-
-If it **succeeds**, continue to 12b.
-
-#### 12b. SSH into production and pull the new image
-
-```bash
-ssh -p 2211 maia@lara.sable-toad.ts.net 'cd ~/workspace/deploy/app && docker compose pull'
-```
-
-If SSH or pull fails, warn the user and set `DEPLOY_STATUS="Image pull failed"`. Skip to summary.
-
-#### 12c. Restart containers
-
-```bash
-ssh -p 2211 maia@lara.sable-toad.ts.net 'cd ~/workspace/deploy/app && docker compose up -d'
-```
-
-If this fails, warn the user and set `DEPLOY_STATUS="Container restart failed"`. Skip to summary.
-
-#### 12d. Wait for containers to become healthy
-
-Wait a few seconds for containers to start, then check health:
-```bash
-# Wait for initial startup
-sleep 10
-
-# Check container health status
-ssh -p 2211 maia@lara.sable-toad.ts.net 'docker ps --filter "name=maia-" --format "table {{.Names}}\t{{.Status}}"'
-```
-
-Poll up to 5 times (every 10 seconds) until all `maia-*` containers report `(healthy)`:
-```bash
-ssh -p 2211 maia@lara.sable-toad.ts.net 'docker inspect --format="{{.Name}} {{.State.Health.Status}}" maia-api maia-backoffice maia-indexer maia-demo 2>/dev/null'
-```
-
-**Success criteria:** All containers that existed before the deploy report `healthy`. The `maia-indexer` container may take longer (120s start period) — wait up to 3 minutes for it.
-
-If all healthy: set `DEPLOY_STATUS="Deployed successfully (SHA: $SHORT_SHA)"`
-If timeout (3 min): set `DEPLOY_STATUS="Containers not yet healthy after 3 min — check manually"` and print the current status of each container.
-
-#### 12e. Quick smoke test
-
-If containers are healthy, do a quick HTTP check:
-```bash
-ssh -p 2211 maia@lara.sable-toad.ts.net 'curl -sf --max-time 5 http://localhost:5000/_/health && echo " API OK" || echo " API FAIL"'
-ssh -p 2211 maia@lara.sable-toad.ts.net 'curl -sf --max-time 5 http://localhost:5001/_/health && echo " Backoffice OK" || echo " Backoffice FAIL"'
-```
-
-Append the smoke test results to `DEPLOY_STATUS`.
-
-### 13. Print summary table
+### 12. Print summary table
 
 This MUST be the last thing you output:
 
@@ -257,12 +159,9 @@ This MUST be the last thing you output:
 | **Planning time** | Xh Ym |
 | **Implementation time** | Xh Ym |
 | **Total session time** | Xh Ym |
-| **Server** | Stopped (port N) / Not running / Failed to stop |
 | **Worktree removed** | `<path>` |
 | **Impl report** | `<path-to-impl-report.md>` |
-| **Pushed to origin** | `main` |
 | **Sessions pruned** | N old sessions removed / None |
-| **Deploy** | `<DEPLOY_STATUS>` / Skipped (not requested) |
 | **Current state** | Back on `main` in `<main-workspace>` |
 
 ---
@@ -271,38 +170,13 @@ This MUST be the last thing you output:
 
 Use this path when already on `main` with no active session worktree.
 
-1. **Check for stale worktrees and branches:**
-   ```bash
-   git worktree list
-   git branch --list --no-column
-   ```
-   If there are worktrees other than the main workspace or branches other than `main`, ask the user whether to merge/delete them or leave them.
-
-2. **Commit any pending changes:**
+1. **Commit any pending changes:**
    Run `git status --porcelain`. Stage and commit intentional changes. Delete temp/generated files. Ask the user about anything uncertain.
 
-3. **Check for session folders with active state:**
-   Look for any `.code-sessions/*/state.json` where `phase` is not `"done"`. Warn the user about these orphaned sessions and ask what to do.
-
-4. **Push main to origin:**
-   ```bash
-   git push origin main
-   ```
-
-5. **Deploy to production (conditional):**
-
-   **Skip this step if `DEPLOY_REQUESTED` is false.** Go straight to step 6 (Print summary table).
-
-   If `DEPLOY_REQUESTED` is true, follow the same deploy process as Session Wrap-Up step 12 (12a through 12e). The only difference is that `DEPLOY_SHA` comes from the current HEAD on main rather than a merge commit.
-
-6. **Print summary table:**
+2. **Print summary table:**
 
    | Item | Status |
    |------|--------|
    | **Committed** | `<description or "nothing to commit">` |
    | **Cleaned up** | `<removed files, or "nothing to clean">` |
-   | **Stale branches** | `<merged/deleted, or "none">` |
-   | **Orphaned sessions** | `<list or "none">` |
-   | **Pushed to origin** | `main` |
-   | **Deploy** | `<DEPLOY_STATUS>` / Skipped (not requested) |
    | **Current state** | Clean `main` in `<workspace>` |
