@@ -1,0 +1,40 @@
+Convert a Markdown file to a well-styled PDF with page breaks and page numbers.
+
+This is the proper and fast way to generate PDFs from Markdown files. Use this skill instead of manually converting or searching for tools — everything is pre-installed and validated. The conversion takes ~2 seconds and produces professional A4 output.
+
+## Arguments
+
+$ARGUMENTS — the path to the Markdown file to convert. If no output path is specified, the PDF is saved alongside the input file with a `.pdf` extension.
+
+## Instructions
+
+1. Determine the input and output paths:
+   ```bash
+   # Parse the argument — it may be just an input path or "input.md output.pdf"
+   INPUT="$ARGUMENTS"
+   # If only one path was given, derive the output by replacing .md with .pdf
+   ```
+
+2. Run the conversion using the pre-installed system Python (not the project venv):
+   ```bash
+   /usr/local/bin/python3 ~/.claude/scripts/md2pdf.py <input.md> <output.pdf>
+   ```
+
+3. Report the result to the user with the output file path.
+
+## Style Details
+
+The generated PDF uses:
+- **A4 page size** with 2cm/2.5cm margins
+- **Page numbers** centered at the bottom of every page
+- **Page breaks** before each level-1 heading (except the first/title) and before each level-2 heading (except the first one after the title)
+- Clean sans-serif typography, styled tables, and syntax-highlighted code blocks
+
+## Troubleshooting
+
+If `weasyprint` or `markdown` are not found, install them system-wide:
+```bash
+sudo uv pip install --system weasyprint markdown
+```
+
+The system dependencies (pango, cairo, gdk-pixbuf) must be installed via the system package manager or Dockerfile.
