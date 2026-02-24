@@ -5,7 +5,8 @@ description: >-
   implementation phases using git worktrees. Use when the user says
   "start a session", "new session", "end session", "cancel session",
   "implement the plan", "daily changes", "generate changelog",
-  "convert to PDF", or any similar phrasing. Manages the full lifecycle:
+  "convert to PDF", "setup session management", or any similar phrasing.
+  Manages the full lifecycle:
   /start-session → braindump → planning → /implement → code → /end-session.
 metadata:
   author: melo
@@ -75,6 +76,12 @@ Arguments are passed through: a date, a date range (`--from ... --to ...`), or e
 **Action:** Read `./commands/pdf.md` and follow its instructions.
 
 Arguments: the path to the markdown file (and optionally the output path).
+
+### Setup
+
+**Trigger:** User says "setup session management", "install session dependencies", "setup PDF dependencies", or similar.
+
+**Action:** Read `./commands/setup.md` and follow its instructions.
 
 ## Shared concepts
 

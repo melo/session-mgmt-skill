@@ -19,6 +19,8 @@ This skill enforces a deliberate sequence: braindump → plan → implement → 
 
 Git worktrees give each session its own working directory and branch. No stash juggling, no half-finished work blocking other tasks. All worktrees share the same database and infrastructure.
 
+The skill also generates daily changelog documents from git history, so you can catch up on what changed after a weekend or vacation. Today's changes are marked as drafts; previous days are finalized automatically.
+
 ## Install
 
 The skill follows the [Agent Skills specification](https://agentskills.io/specification). Clone it into your agent's skills directory:
@@ -26,21 +28,21 @@ The skill follows the [Agent Skills specification](https://agentskills.io/specif
 ```bash
 # Claude Code
 git clone https://github.com/melo/session-mgmt-skill.git ~/.claude/skills/session-mgmt-skill
-
-# Other agents — point at the directory containing SKILL.md,
-# or paste its contents into your system prompt
 ```
 
 ### Prerequisites
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and working
 - Git repository (the skill works in any git repo)
-- For PDF conversion: system Python 3 with `weasyprint` and `markdown` packages:
-  ```bash
-  sudo uv pip install --system weasyprint markdown
-  # Or: pip install weasyprint markdown
-  ```
-  System dependencies (pango, cairo, gdk-pixbuf) must also be installed.
+- For PDF conversion: system Python 3 with `weasyprint` and `markdown` packages, plus system libraries (pango, cairo, gdk-pixbuf)
+
+After cloning, say **"setup session management"** and the skill will install all Python and system dependencies automatically. Or install them manually:
+
+```bash
+sudo uv pip install --system weasyprint markdown
+# Debian/Ubuntu: sudo apt-get install -y libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0
+# macOS: brew install pango gdk-pixbuf
+```
 
 ## Usage
 
@@ -101,6 +103,7 @@ At any point, say "cancel session" to abort without merging. This removes the wo
 |---------|-------------|
 | "daily changes" | Generate "changes to check" documents from git history. Catches up from the last document through today. Today's changes are marked as DRAFT. |
 | "convert to PDF" / "pdf `<file>`" | Convert a Markdown file to a styled PDF with page breaks and page numbers. |
+| "setup session management" | Install all Python and system dependencies required by the skill. |
 
 ### Project-specific configuration
 
@@ -143,7 +146,8 @@ commands/                 ← agent reads the matching command file
 ├── end-session.md        (report, merge, push, cleanup)
 ├── cancel-session.md     (abort, cleanup)
 ├── daily-changes.md      (changelog generation)
-└── pdf.md                (markdown → PDF conversion)
+├── pdf.md                (markdown → PDF conversion)
+└── setup.md              (install dependencies)
     ↓
 scripts/                  ← executed by command files
 ├── collect_daily_changes.py  (git data collection, session parsing, SVG timelines)
