@@ -114,8 +114,6 @@ Set `phase` to `"done"` in `state.json`. Do NOT delete the session folder — it
 ```bash
 MAIN_WORKSPACE=<main-repo-root>  # from state.json or detect via git worktree list
 cd "$MAIN_WORKSPACE"
-GIT_AUTHOR_NAME="Claude" GIT_AUTHOR_EMAIL="melo-claude@simplicidade.org" \
-GIT_COMMITTER_NAME="Claude" GIT_COMMITTER_EMAIL="melo-claude@simplicidade.org" \
 git merge --no-ff <BRANCH> -m "merge session: <BRANCH>"
 ```
 
