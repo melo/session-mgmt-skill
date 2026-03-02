@@ -90,4 +90,15 @@ When the user signals they are done braindumping (e.g., "let's start planning", 
 
 5. **Prepare a plan** — the *how*: implementation steps, layers to touch, migrations, tests to write.
 
-6. **When the plan is accepted** (user approves via ExitPlanMode), **immediately invoke `/implement`** to start the implementation. Do not ask for confirmation — just start.
+6. **CRITICAL — After ExitPlanMode succeeds (plan accepted):**
+   You MUST immediately read `./commands/implement.md` and follow its instructions.
+   Do NOT write any code, edit any files, or start implementing until you have:
+   - Created a worktree and branch (implement.md steps 4-6)
+   - Written spec and plan files (implement.md step 11)
+   - Committed the spec and plan (implement.md step 12)
+
+   This applies even if ExitPlanMode was rejected and re-attempted — the obligation
+   to invoke /implement resets on every successful plan approval.
+
+   If you find yourself about to write code while still on the `main` branch, STOP.
+   Read implement.md first.
