@@ -11,6 +11,7 @@ Usage:
     python3 ~/.claude/scripts/md2pdf.py <input.md> <output.pdf>
 """
 
+import os
 import sys
 
 import markdown
@@ -139,6 +140,11 @@ ul, ol {
 li {
     margin-bottom: 4px;
 }
+
+img {
+    max-width: 100%;
+    height: auto;
+}
 """
 
 
@@ -162,7 +168,8 @@ def convert(md_path: str, pdf_path: str) -> None:
 </body>
 </html>"""
 
-    HTML(string=html_doc).write_pdf(pdf_path)
+    base_url = os.path.dirname(os.path.abspath(md_path))
+    HTML(string=html_doc, base_url=base_url).write_pdf(pdf_path)
     print(f"  {pdf_path}")
 
 
