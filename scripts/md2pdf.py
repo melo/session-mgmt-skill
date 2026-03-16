@@ -145,6 +145,40 @@ img {
     max-width: 100%;
     height: auto;
 }
+
+/* Footnotes */
+div.footnote {
+    margin-top: 32px;
+    padding-top: 12px;
+    border-top: 1px solid #ccc;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #555;
+}
+
+div.footnote ol {
+    padding-left: 20px;
+}
+
+div.footnote li {
+    margin-bottom: 4px;
+}
+
+div.footnote hr {
+    display: none;
+}
+
+sup a.footnote-ref {
+    color: #0066cc;
+    text-decoration: none;
+    font-size: 10px;
+}
+
+a.footnote-backref {
+    color: #0066cc;
+    text-decoration: none;
+    font-size: 10px;
+}
 """
 
 
@@ -154,7 +188,7 @@ def convert(md_path: str, pdf_path: str) -> None:
 
     html_body = markdown.markdown(
         md_text,
-        extensions=["tables", "fenced_code", "smarty"],
+        extensions=["tables", "fenced_code", "smarty", "footnotes"],
     )
 
     html_doc = f"""<!DOCTYPE html>
