@@ -1,4 +1,4 @@
-#!/usr/local/bin/python3
+#!/usr/bin/env python3
 """Convert a Markdown file to a styled PDF.
 
 Uses python-markdown for Markdown→HTML and WeasyPrint for HTML→PDF.
