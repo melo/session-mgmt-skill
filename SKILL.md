@@ -105,7 +105,7 @@ Each session is tracked in `$REPO_ROOT/.code-sessions/<yyyymmdd>-<hex>/state.jso
   "start_of_implementation_timestamp": "2026-02-23T12:30:00Z",
   "end_of_session_timestamp": "2026-02-23T14:00:00Z",
   "branch": "feature-name",
-  "worktree_path": "/worktrees/workspace-feature-name"
+  "worktree_path": ".worktrees/feature-name"
 }
 ```
 
@@ -115,7 +115,7 @@ In a worktree, `.code-sessions/current` is a symlink to the active session folde
 
 ### Worktrees
 
-- Live in `/worktrees/<repo-name>-<branch>` (or a similar persistent location)
+- Live in `$REPO_ROOT/.worktrees/<branch>` (project-local, gitignored)
 - Symlink `.env`, `.legacy_env`, and `data/` from the main workspace
 - Get their own dependency installation (`.venv`, `node_modules`, etc.)
 - Share the same database, cache, and infrastructure

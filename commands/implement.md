@@ -44,23 +44,26 @@ git branch --list <name>
 ```
 If the branch exists, try `<name>-2`, `<name>-3`, etc. until unique.
 
-### 5. Mark worktree parent as safe
+### 5. Ensure `.worktrees/` is gitignored
 
-This is a **project-level** config (not global) — prevents VS Code git extension from nagging about unsafe directories:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-REPO_NAME=$(basename "$REPO_ROOT")
-git config --add safe.directory /worktrees
+git check-ignore -q "$REPO_ROOT/.worktrees" 2>/dev/null || echo '.worktrees/' >> "$REPO_ROOT/.gitignore"
 ```
-Run this **before** creating the worktree.
 
 ### 6. Create the worktree
 
 ```bash
-REPO_NAME=$(basename "$REPO_ROOT")
-WORKTREE_PATH="/worktrees/${REPO_NAME}-<BRANCH>"
+mkdir -p "$REPO_ROOT/.worktrees"
+WORKTREE_PATH="$REPO_ROOT/.worktrees/<BRANCH>"
 git worktree add "$WORKTREE_PATH" -b <BRANCH>
 ```
+
+### 6a. Check VSCode worktree exclusion
+
+Check if `.devcontainer/devcontainer.json` exists and whether it already excludes `.worktrees/` from the file watcher (look for `files.watcherExclude` containing `.worktrees`). If not, recommend to the user:
+
+> "Consider adding `.worktrees/` to `files.watcherExclude` and `files.exclude` in your devcontainer.json to prevent VSCode from indexing worktree contents."
 
 ### 7. Symlink gitignored files
 
@@ -131,7 +134,7 @@ Work through the plan step by step in the worktree. All file paths are relative 
 
 - Session ID: `<SESSION_ID>`
 - Session name: `<name>`
-- Worktree: `<worktree-path>`
+- Worktree: `$REPO_ROOT/.worktrees/<branch>`
 - Branch: `<branch>`
 - Spec: `<spec-file-path>`
 - Plan: `<plan-file-path>`
