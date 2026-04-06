@@ -15,29 +15,41 @@ No arguments required. A random session ID is generated automatically.
    REPO_ROOT=$(git rev-parse --show-toplevel)
    ```
 
-2. **Generate a session ID** in the format `<yyyymmdd>-<6-char-hex>`:
+2. **GATE — Run the test suite before anything else.**
+
+   Unless the user explicitly said something like "I need a new session to fix the tests" or "session to fix failing tests", you MUST run the project's test suite now.
+
+   - Look at the project's CLAUDE.md or standard conventions to find the test command (e.g., `make test`, `pytest`, `npm test`, `go test ./...`, etc.).
+   - Run the tests from `$REPO_ROOT`.
+   - **If tests fail:** STOP. Do NOT proceed with session creation. Print:
+     > Tests are not passing. I can't start a new session on a broken test suite.
+     > Fix the failing tests first, or say "I need a new session to fix the tests" to bypass this check.
+   - **If tests pass:** Continue to the next step.
+   - **If the user triggered the "fix the tests" escape hatch:** Skip this step entirely and proceed normally.
+
+3. **Generate a session ID** in the format `<yyyymmdd>-<6-char-hex>`:
    ```bash
    SESSION_ID="$(date -u +%Y%m%d)-$(openssl rand -hex 3)"
    ```
 
-3. **Create the session folder:**
+4. **Create the session folder:**
    ```bash
    mkdir -p "$REPO_ROOT/.code-sessions/$SESSION_ID"
    ```
 
-4. **Ensure `.code-sessions/` is in `.gitignore`:**
+5. **Ensure `.code-sessions/` is in `.gitignore`:**
    Check if `.code-sessions/` already appears in `$REPO_ROOT/.gitignore`. If not, append it:
    ```bash
    grep -qxF '.code-sessions/' "$REPO_ROOT/.gitignore" 2>/dev/null || echo '.code-sessions/' >> "$REPO_ROOT/.gitignore"
    ```
    Do the same for `.dockerignore` if it exists.
 
-5. **Capture the current UTC timestamp** (Claude does not know the current time — you MUST use a bash command):
+6. **Capture the current UTC timestamp** (Claude does not know the current time — you MUST use a bash command):
    ```bash
    SESSION_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
    ```
 
-6. **Write `state.json`** (use `$SESSION_TS` for the start timestamp):
+7. **Write `state.json`** (use `$SESSION_TS` for the start timestamp):
    ```json
    {
      "id": "<SESSION_ID>",
@@ -52,14 +64,14 @@ No arguments required. A random session ID is generated automatically.
    }
    ```
 
-7. **CRITICAL — Remember the session ID.** You must retain the value of `SESSION_ID` for the entire conversation. Never lose it. You will need it when `/implement` runs later.
+8. **CRITICAL — Remember the session ID.** You must retain the value of `SESSION_ID` for the entire conversation. Never lose it. You will need it when `/implement` runs later.
 
-8. **Enter plan mode** if not already in plan mode.
+9. **Enter plan mode** if not already in plan mode.
 
-9. **Print a short confirmation:**
+10. **Print a short confirmation:**
    > Session `<SESSION_ID>` started. I'm in braindump mode — go ahead and dump your ideas. I'll listen without interrupting. When you're ready to start planning, say "let's start planning".
 
-10. **STOP.** After printing the confirmation, your turn is over. Do NOT launch any agents, do NOT explore the codebase, do NOT read files. Just wait for the user to speak. The braindump phase (below) overrides the plan-mode 5-phase workflow until the user explicitly transitions to planning.
+11. **STOP.** After printing the confirmation, your turn is over. Do NOT launch any agents, do NOT explore the codebase, do NOT read files. Just wait for the user to speak. The braindump phase (below) overrides the plan-mode 5-phase workflow until the user explicitly transitions to planning.
 
 ## Braindump phase
 
