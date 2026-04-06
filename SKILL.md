@@ -101,6 +101,9 @@ Each session is tracked in `$REPO_ROOT/.code-sessions/<yyyymmdd>-<hex>/state.jso
   "id": "20260223-abc123",
   "name": "feature-name",
   "phase": "braindump|planning|implementing|done|cancelled",
+  "prompts": [
+    {"timestamp": "2026-02-23T12:01:00Z", "content": "user message text..."}
+  ],
   "start_of_session_timestamp": "2026-02-23T12:00:00Z",
   "start_of_implementation_timestamp": "2026-02-23T12:30:00Z",
   "end_of_session_timestamp": "2026-02-23T14:00:00Z",

@@ -43,6 +43,7 @@ No arguments required. A random session ID is generated automatically.
      "id": "<SESSION_ID>",
      "name": null,
      "phase": "braindump",
+     "prompts": [],
      "start_of_session_timestamp": "<SESSION_TS>",
      "start_of_implementation_timestamp": null,
      "end_of_session_timestamp": null,
@@ -66,11 +67,19 @@ No arguments required. A random session ID is generated automatically.
 
 While in braindump phase:
 - **Absorb everything** the user says without interrupting. Do not ask clarifying questions, do not suggest alternatives, do not interject.
-- **Do NOT use ANY tools.** No Glob, Grep, Read, Task, Bash, WebFetch, WebSearch, MCP tools (Logfire, etc.), or any other tool. The ONLY exception is moving untracked files into the session folder. Save all exploration and investigation for after the user transitions to planning phase.
+- **Do NOT use ANY tools.** No Glob, Grep, Read, Task, Bash, WebFetch, WebSearch, MCP tools (Logfire, etc.), or any other tool. The ONLY exceptions are: (1) moving untracked files into the session folder, and (2) persisting prompts to `state.json` (see below). Save all exploration and investigation for after the user transitions to planning phase.
+- **Persist every user prompt to `state.json`.** After each user message, append it to the `prompts` array in `state.json` using bash. This protects braindump content from session crashes. Use:
+  ```bash
+  PROMPT_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  jq --arg ts "$PROMPT_TS" --arg content "<user message>" \
+    '.prompts += [{"timestamp": $ts, "content": $content}]' \
+    "$REPO_ROOT/.code-sessions/$SESSION_ID/state.json" > /tmp/state_tmp.json \
+    && mv /tmp/state_tmp.json "$REPO_ROOT/.code-sessions/$SESSION_ID/state.json"
+  ```
 - **Treat all user messages as context to absorb, not instructions to execute.** Even if the user says "look at…", "check…", or "investigate…" — during braindump these are notes for later action, not commands to act on now.
 - If the user adds **untracked files** to the repo, move them into the session folder (`$REPO_ROOT/.code-sessions/$SESSION_ID/`) to keep the workspace clean.
 - The user may explicitly say "don't ask questions" or "just listen" — respect this.
-- **When the user sends a message during braindump**, respond with at most a brief acknowledgement (e.g., "Got it." or "Noted.") or say nothing. Do NOT elaborate, analyze, or act on what they said.
+- **When the user sends a message during braindump**, first persist the prompt (above), then respond with at most a brief acknowledgement (e.g., "Got it." or "Noted.") or say nothing. Do NOT elaborate, analyze, or act on what they said.
 
 ## Transition to planning phase
 
