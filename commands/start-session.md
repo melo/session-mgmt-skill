@@ -49,7 +49,28 @@ No arguments required. A random session ID is generated automatically.
    SESSION_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
    ```
 
-7. **Write `state.json`** (use `$SESSION_TS` for the start timestamp):
+7. **Check for backlog item reference.**
+
+   If the user mentioned a backlog item when starting the session (by ID, title, or description — e.g., "start a session on the webhook retry item", "start session on abc123"):
+
+   a. Find the item in `$REPO_ROOT/.code-sessions/backlog/`. Search by ID first, then by title match across all `item.json` files.
+
+   b. Update the backlog item:
+      ```bash
+      TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      jq --arg sid "$SESSION_ID" --arg ts "$TS" \
+        '.status = "in-progress" | .active_session = $sid | .updated_at = $ts' \
+        "$REPO_ROOT/.code-sessions/backlog/$ITEM_ID/item.json" > /tmp/item_tmp.json \
+        && mv /tmp/item_tmp.json "$REPO_ROOT/.code-sessions/backlog/$ITEM_ID/item.json"
+      ```
+
+   c. Save the item ID as `BACKLOG_ITEM_ID` for use in state.json below.
+
+   d. Read the item's `title`, `description`, and `source.context` — these will pre-seed the braindump.
+
+   If no backlog item was referenced, set `BACKLOG_ITEM_ID` to `null`.
+
+8. **Write `state.json`** (use `$SESSION_TS` for the start timestamp):
    ```json
    {
      "id": "<SESSION_ID>",
@@ -60,18 +81,31 @@ No arguments required. A random session ID is generated automatically.
      "start_of_implementation_timestamp": null,
      "end_of_session_timestamp": null,
      "branch": null,
-     "worktree_path": null
+     "worktree_path": null,
+     "backlog_item_id": "<BACKLOG_ITEM_ID or null>"
    }
    ```
 
-8. **CRITICAL — Remember the session ID.** You must retain the value of `SESSION_ID` for the entire conversation. Never lose it. You will need it when `/implement` runs later.
+9. **CRITICAL — Remember the session ID.** You must retain the value of `SESSION_ID` for the entire conversation. Never lose it. You will need it when `/implement` runs later.
 
-9. **Enter plan mode** if not already in plan mode.
+10. **Enter plan mode** if not already in plan mode.
 
-10. **Print a short confirmation:**
+11. **Print a short confirmation:**
+
+   If started from a backlog item:
+   > Session `<SESSION_ID>` started from backlog item `<ITEM_ID>` — "<title>".
+   > I'm in braindump mode. Here's the context from the backlog item:
+   >
+   > **<title>**
+   > <description>
+   > (Source: <source context if available>)
+   >
+   > Go ahead and add more context or dump additional ideas. When you're ready to start planning, say "let's start planning".
+
+   If started without a backlog item:
    > Session `<SESSION_ID>` started. I'm in braindump mode — go ahead and dump your ideas. I'll listen without interrupting. When you're ready to start planning, say "let's start planning".
 
-11. **STOP.** After printing the confirmation, your turn is over. Do NOT launch any agents, do NOT explore the codebase, do NOT read files. Just wait for the user to speak. The braindump phase (below) overrides the plan-mode 5-phase workflow until the user explicitly transitions to planning.
+12. **STOP.** After printing the confirmation, your turn is over. Do NOT launch any agents, do NOT explore the codebase, do NOT read files. Just wait for the user to speak. The braindump phase (below) overrides the plan-mode 5-phase workflow until the user explicitly transitions to planning. Even when started from a backlog item, ALWAYS enter braindump — never skip to planning.
 
 ## Braindump phase
 

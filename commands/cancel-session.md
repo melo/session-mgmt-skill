@@ -89,6 +89,23 @@ Nothing to clean up. Proceed to step 5.
 
 Set `phase` to `"cancelled"` in `state.json`. Do NOT delete the session folder — it serves as a historical record.
 
+### 5b. Revert backlog item (if applicable)
+
+Read `backlog_item_id` from `state.json`. If it is not null, this session was started from a backlog item.
+
+Revert the item to its previous state:
+```bash
+BACKLOG_ITEM_ID=$(jq -r '.backlog_item_id' "$STATE_FILE")
+BACKLOG_DIR="$REPO_ROOT/.code-sessions/backlog"
+TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+jq --arg ts "$TS" \
+  '.status = "open" | .active_session = null | .updated_at = $ts' \
+  "$BACKLOG_DIR/$BACKLOG_ITEM_ID/item.json" > /tmp/item_tmp.json \
+  && mv /tmp/item_tmp.json "$BACKLOG_DIR/$BACKLOG_ITEM_ID/item.json"
+```
+
+The item stays in its original rank position in `index.json`. No dependency changes.
+
 ### 6. Prune old sessions
 
 Scan `.code-sessions/` for folders where the `yyyymmdd` prefix in the folder name is older than 6 months. Delete those folders:
@@ -115,5 +132,6 @@ This MUST be the last thing output:
 | **Phase when cancelled** | `<ORIGINAL_PHASE>` |
 | **Branch deleted** | `<branch>` / No branch created |
 | **Worktree removed** | `<path>` / No worktree created |
+| **Backlog item** | `<item-id>` reverted to open / No backlog item |
 | **Sessions pruned** | N old sessions removed / None |
 | **Current state** | Back on `main` in `<workspace-path>` |

@@ -7,8 +7,10 @@ description: >-
   "implement the plan", "daily changes", "generate changelog",
   "convert to PDF", "generate my changelog", "quick check",
   "refresh changelog-categories.yml", "setup session management",
-  or any similar phrasing. Manages the full lifecycle:
+  "backlog", "add to backlog", "show backlog", or any similar phrasing.
+  Manages the full lifecycle:
   /start-session → braindump → planning → /implement → code → /end-session.
+  Also manages a persistent project backlog for tracking planned work across sessions.
 metadata:
   author: melo
   version: "1.0.0"
@@ -84,6 +86,16 @@ Arguments: the path to the markdown file (and optionally the output path).
 
 **Action:** Read `./commands/refresh-changelog-categories.md` and follow its instructions.
 
+### Backlog
+
+**Trigger:** User says "backlog", "add to backlog", "show backlog", "what's in the backlog?", or any mention of "backlog" in the context of project work (e.g., "we can improve X later, add to backlog", "move the webhook item above auth in the backlog").
+
+**Action:** Read `./commands/backlog.md` and follow its instructions.
+
+Supports subcommands: `/backlog`, `/backlog add`, `/backlog show <id>`, `/backlog edit <id>`, `/backlog rank`, `/backlog link <id> <id>`, `/backlog remove <id>`, `/backlog filter`.
+
+Natural language containing "backlog" routes through the same command logic.
+
 ### Setup
 
 **Trigger:** User says "setup session management", "install session dependencies", "setup PDF dependencies", or similar.
@@ -108,13 +120,24 @@ Each session is tracked in `$REPO_ROOT/.code-sessions/<yyyymmdd>-<hex>/state.jso
   "start_of_implementation_timestamp": "2026-02-23T12:30:00Z",
   "end_of_session_timestamp": "2026-02-23T14:00:00Z",
   "branch": "feature-name",
-  "worktree_path": ".worktrees/feature-name"
+  "worktree_path": ".worktrees/feature-name",
+  "backlog_item_id": null
 }
 ```
+
+The `backlog_item_id` field is set when a session is started from a backlog item. Used by end-session (to archive the item) and cancel-session (to revert it to open).
 
 The `.code-sessions/` directory is gitignored and dockerignored. Session folders are kept as historical records and auto-pruned after 6 months.
 
 In a worktree, `.code-sessions/current` is a symlink to the active session folder so skills can find the state without knowing the random ID.
+
+### Backlog
+
+A persistent stack-ranked list of work items stored in `$REPO_ROOT/.code-sessions/backlog/`. Each item lives in its own folder (`backlog/<id>/item.json` + attachments). An `index.json` holds the ordered list of IDs — position is priority.
+
+Items have status `open`, `in-progress`, `archived`, or `cancelled`. Only `open` and `in-progress` items appear in the index. Items carry an `importance` label (`critical`/`high`/`medium`/`low`) independent of rank position.
+
+**Audit trail:** All objects maintain bidirectional links. Sessions reference backlog items via `backlog_item_id` in `state.json`. Backlog items reference sessions via `active_session`. Follow-ups link to parents via `source.follow_up_from` and parents track follow-ups via `follow_up_items`. Dependencies move from `dependencies` to `resolved_dependencies` when completed — never deleted.
 
 ### Worktrees
 

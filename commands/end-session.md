@@ -125,6 +125,64 @@ Use the project's commit authorship conventions if defined in CLAUDE.md.
 
 Set `phase` to `"done"` in `state.json`. Do NOT delete the session folder — it serves as a historical record.
 
+### 8b. Process backlog item (if applicable)
+
+Read `backlog_item_id` from `state.json`. If it is not null, this session was started from a backlog item.
+
+**Archive the backlog item:**
+
+```bash
+BACKLOG_ITEM_ID=$(jq -r '.backlog_item_id' "$STATE_FILE")
+MAIN_WORKSPACE=$(git worktree list --porcelain | awk '/^worktree /{path=$2} /branch refs\/heads\/main/{print path}')
+BACKLOG_DIR="$MAIN_WORKSPACE/.code-sessions/backlog"
+DOCS_DIR="<docs/implementation/yyyymmdd-session-name>"  # same directory as spec/plan
+```
+
+1. Move the backlog item folder to the docs directory:
+   ```bash
+   mv "$BACKLOG_DIR/$BACKLOG_ITEM_ID" "$DOCS_DIR/backlog-item-$BACKLOG_ITEM_ID"
+   ```
+
+2. Update the archived item's status:
+   ```bash
+   TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   jq --arg ts "$TS" '.status = "archived" | .updated_at = $ts' \
+     "$DOCS_DIR/backlog-item-$BACKLOG_ITEM_ID/item.json" > /tmp/item_tmp.json \
+     && mv /tmp/item_tmp.json "$DOCS_DIR/backlog-item-$BACKLOG_ITEM_ID/item.json"
+   ```
+
+3. Remove from backlog index:
+   ```bash
+   jq --arg id "$BACKLOG_ITEM_ID" '.items -= [$id]' \
+     "$BACKLOG_DIR/index.json" > /tmp/index_tmp.json \
+     && mv /tmp/index_tmp.json "$BACKLOG_DIR/index.json"
+   ```
+
+**Process follow-up items (if the user mentioned any):**
+
+If the user said something like "end session, we should follow up with X and Y", create new backlog items for each follow-up using the logic from `backlog.md` — `/backlog add` with:
+- `source.type`: `"follow-up"`
+- `source.follow_up_from`: `$BACKLOG_ITEM_ID`
+- `source.session_id`: the current session ID
+- `source.context`: brief description of what was completed and why follow-up is needed
+
+After creating follow-ups, update the archived parent's `follow_up_items` array with the new IDs.
+
+**Resolve dependencies:**
+
+Scan all remaining items in `$BACKLOG_DIR/*/item.json`. For each item that has `$BACKLOG_ITEM_ID` in its `dependencies` array:
+
+1. Move the ID from `dependencies` to `resolved_dependencies`.
+
+2. If follow-up items were created:
+   - Ask the user: "Item `<title>` was blocked by the item we just completed. We also created follow-up items. Should `<title>` be unblocked now, or should the new follow-up items be added as dependencies?"
+   - If the user says add follow-ups as dependencies: add the follow-up IDs to the item's `dependencies` array.
+   - If the user says unblock: leave `dependencies` as-is (the resolved one was already moved out).
+
+3. If no follow-up items were created and the item's `dependencies` array is now empty: flag it as "unblocked" in the end-session summary.
+
+Update `updated_at` on all modified items.
+
 ### 9. Switch to main and merge
 
 ```bash
@@ -173,6 +231,9 @@ done
 | **Total session time** | Xh Ym |
 | **Worktree removed** | `<path>` |
 | **Impl report** | `<path-to-impl-report.md>` |
+| **Backlog item** | `<item-id>` archived to `<docs-path>` / No backlog item |
+| **Follow-ups created** | N new backlog items / None |
+| **Items unblocked** | `<list of unblocked item titles>` / None |
 | **Sessions pruned** | N old sessions removed / None |
 | **Current state** | Back on `main` in `<main-workspace>` |
 
