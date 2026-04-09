@@ -5,6 +5,7 @@ No arguments required.
 ## Detect context
 
 1. Determine current branch and working directory:
+
    ```bash
    CURRENT_BRANCH=$(git branch --show-current)
    REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -50,88 +51,28 @@ Run the project's test suite (look at CLAUDE.md or standard conventions for the 
 ### 2. Find the session
 
 Read the session state from the worktree:
+
 ```bash
 STATE_FILE="$REPO_ROOT/.code-sessions/current/state.json"
 ```
 
 If the file doesn't exist, warn the user: "No session state found at .code-sessions/current/state.json. Proceeding without session tracking." Continue with the merge anyway — just skip the session-specific steps (timestamps, report).
 
-### 3. Record end timestamp
+### 3. Generate implementation report
 
-Capture the current UTC time via bash (Claude does not know the current time — you MUST use a command):
-```bash
-END_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-```
-
-Set `end_of_session_timestamp` to `$END_TS` in `state.json`.
-
-### 4. Compute time breakdown
-
-From `state.json`, compute:
-
-- **Planning time:** `start_of_session_timestamp` → `start_of_implementation_timestamp`
-- **Implementation time:** `start_of_implementation_timestamp` → `end_of_session_timestamp`
-- **Total session time:** `start_of_session_timestamp` → `end_of_session_timestamp`
-
-Format each as `Xh Ym`. If a timestamp is null, show "N/A" for that phase.
-
-### 5. Generate implementation report
-
-Before leaving the worktree, create the report file.
-
-**Determine the docs path** from `state.json` — use the same `docs/implementation/<yyyymmdd>-<session-name>/` directory where the spec and plan live.
-
-**Collect commit list:**
-```bash
-git log main..<BRANCH> --format="%H %s"
-```
-
-**Derive GitHub URL** from the remote:
-```bash
-REMOTE_URL=$(git remote get-url origin 2>/dev/null)
-```
-Parse it to get `https://github.com/<owner>/<repo>`. Handle both SSH (`git@github.com:owner/repo.git`) and HTTPS (`https://github.com/owner/repo.git`) formats. Strip `.git` suffix.
-
-**Write the report** to `<yyyymmdd>-<session-name>-impl-report.md`:
-
-```markdown
-# Implementation Report — <session-name>
-
-| Item | Value |
-|------|-------|
-| **Session ID** | `<id>` |
-| **Session folder** | `.code-sessions/<id>` |
-| **Branch** | `<branch>` |
-| **Worktree** | `<worktree-path>` |
-| **Planning time** | Xh Ym |
-| **Implementation time** | Xh Ym |
-| **Total session time** | Xh Ym |
-| **Commits** | N |
-
-## Commits
-
-| Hash | Message |
-|------|---------|
-| [`abcdef1`](https://github.com/owner/repo/commit/abcdef1...) | First line of commit message |
-| [`abcdef2`](https://github.com/owner/repo/commit/abcdef2...) | First line of commit message |
-| ... | ... |
-```
-
-### 6. Update session state
-
-Set `phase` to `"done"` in `state.json`. Do NOT delete the session folder — it serves as a historical record.
-
-**GATE:** Verify that `state.json` now has `"phase": "done"` and `"end_of_session_timestamp"` is set before proceeding.
-
-### 7. Copy state.json to docs
-
-Copy the session's `state.json` into the same `docs/implementation/<yyyymmdd>-<session-name>/` directory so it is committed alongside the spec, plan, and report:
+Run the wrapup script to record timestamps, compute time breakdown, generate the report, set phase to "done", and copy state.json to docs:
 
 ```bash
-cp "$REPO_ROOT/.code-sessions/current/state.json" "<docs-path>/state.json"
+python3 ~/.claude/skills/session-mgmt-skill/scripts/session_wrapup.py \
+  --session-dir "$REPO_ROOT/.code-sessions/current" \
+  --repo-root "$REPO_ROOT"
 ```
 
-### 8. Commit report and state.json
+Read the JSON output. It contains: `report_path`, `state_copy_path`, `docs_dir`, timing breakdown (`planning_time`, `implementation_time`, `total_time`), `commit_count`, `branch`, `github_url`.
+
+**GATE:** Verify the script exited with code 0. If it failed, show the error and stop.
+
+### 4. Commit report and state.json
 
 ```bash
 git add docs/implementation/
@@ -140,38 +81,26 @@ git commit -m "docs: add implementation report for <session-name>"
 
 Use the project's commit authorship conventions if defined in CLAUDE.md.
 
-### 8b. Process backlog item (if applicable)
+### 5. Process backlog item (if applicable)
 
 Read `backlog_item_id` from `state.json`. If it is not null, this session was started from a backlog item.
 
 **Archive the backlog item:**
 
 ```bash
-BACKLOG_ITEM_ID=$(jq -r '.backlog_item_id' "$STATE_FILE")
-MAIN_WORKSPACE=$(git worktree list --porcelain | awk '/^worktree /{path=$2} /branch refs\/heads\/main/{print path}')
-BACKLOG_DIR="$MAIN_WORKSPACE/.code-sessions/backlog"
-DOCS_DIR="<docs/implementation/yyyymmdd-session-name>"  # same directory as spec/plan
+python3 ~/.claude/skills/session-mgmt-skill/scripts/backlog_ops.py archive \
+  "$BACKLOG_ITEM_ID" --docs-dir "<docs_dir from wrapup output>" \
+  --repo-root "$REPO_ROOT"
 ```
 
-1. Move the backlog item folder to the docs directory:
-   ```bash
-   mv "$BACKLOG_DIR/$BACKLOG_ITEM_ID" "$DOCS_DIR/backlog-item-$BACKLOG_ITEM_ID"
-   ```
+**Resolve dependencies:**
 
-2. Update the archived item's status:
-   ```bash
-   TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-   jq --arg ts "$TS" '.status = "archived" | .updated_at = $ts' \
-     "$DOCS_DIR/backlog-item-$BACKLOG_ITEM_ID/item.json" > /tmp/item_tmp.json \
-     && mv /tmp/item_tmp.json "$DOCS_DIR/backlog-item-$BACKLOG_ITEM_ID/item.json"
-   ```
+```bash
+python3 ~/.claude/skills/session-mgmt-skill/scripts/backlog_ops.py resolve-dependency \
+  "$BACKLOG_ITEM_ID" --repo-root "$REPO_ROOT"
+```
 
-3. Remove from backlog index:
-   ```bash
-   jq --arg id "$BACKLOG_ITEM_ID" '.items -= [$id]' \
-     "$BACKLOG_DIR/index.json" > /tmp/index_tmp.json \
-     && mv /tmp/index_tmp.json "$BACKLOG_DIR/index.json"
-   ```
+Read the JSON output — it lists `affected_items` with an `unblocked` flag for each.
 
 **Process follow-up items (if the user mentioned any):**
 
@@ -210,7 +139,7 @@ Scan all remaining items in `$BACKLOG_DIR/*/item.json`. For each item that has `
 
 Update `updated_at` on all modified items.
 
-### 9. Switch to main and merge
+### 6. Switch to main and merge
 
 ```bash
 MAIN_WORKSPACE=<main-repo-root>  # from state.json or detect via git worktree list
@@ -219,6 +148,7 @@ git merge --no-ff <BRANCH> -m "merge session: <BRANCH>"
 ```
 
 **If merge conflicts occur:**
+
 - Show the conflicting files
 - Ask the user with these options:
   1. "Abort merge and keep worktree" — run `git merge --abort`, stop
@@ -226,29 +156,22 @@ git merge --no-ff <BRANCH> -m "merge session: <BRANCH>"
   3. "Abort merge and delete worktree anyway" — run `git merge --abort`, continue cleanup
 - If options 1 or 2 chosen, **stop** — do not remove worktree or branch
 
-### 10. Remove worktree and delete branch
+### 7. Remove worktree and delete branch
 
 ```bash
 git worktree remove --force <WORKTREE_PATH>
 git branch -d <BRANCH>
 ```
 
-### 11. Prune old sessions
-
-Scan `.code-sessions/` for folders where the `yyyymmdd` prefix in the folder name is older than 6 months. Delete those folders:
+### 8. Prune old sessions
 
 ```bash
-SIX_MONTHS_AGO=$(python3 -c "from datetime import date,timedelta;print((date.today()-timedelta(days=180)).strftime('%Y%m%d'))")
-for dir in "$MAIN_WORKSPACE"/.code-sessions/*/; do
-  FOLDER_DATE=$(basename "$dir" | cut -c1-8)
-  if [ "$FOLDER_DATE" -lt "$SIX_MONTHS_AGO" ] 2>/dev/null; then
-    rm -rf "$dir"
-    echo "Pruned old session: $(basename "$dir")"
-  fi
-done
+python3 ~/.claude/skills/session-mgmt-skill/scripts/session_prune.py --repo-root "$MAIN_WORKSPACE"
 ```
 
-### 12. Print summary table
+The script removes session folders older than 6 months and outputs JSON with the list of pruned sessions.
+
+### 9. Print summary table
 
 | Item | Status |
 |------|--------|
@@ -265,7 +188,7 @@ done
 | **Sessions pruned** | N old sessions removed / None |
 | **Current state** | Back on `main` in `<main-workspace>` |
 
-### 13. Quick-check daily changes
+### 10. Quick-check daily changes
 
 After printing the summary table, run the daily-changes command with `--quick-check`. This checks how many days are behind on daily changelog documents and offers to generate them.
 

@@ -31,114 +31,78 @@ By now you know what the session is about from the planning conversation. Pick a
 
 If `$ARGUMENTS` is provided, use that as the name instead.
 
-Update `state.json`: set `name` to the chosen name.
-
-### 3. Record implementation start
-
-Capture the current UTC time via bash (Claude does not know the current time — you MUST use a command):
-```bash
-IMPL_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-```
-Set `start_of_implementation_timestamp` to `$IMPL_TS` in `state.json`.
-
-### 4. Ensure unique branch name
+### 3. Run the worktree setup script
 
 ```bash
-git branch --list <name>
+python3 ~/.claude/skills/session-mgmt-skill/scripts/worktree_setup.py \
+  --session-id "<SESSION_ID>" \
+  --branch "<name>" \
+  --name "<name>" \
+  --repo-root "$(git rev-parse --show-toplevel)"
 ```
-If the branch exists, try `<name>-2`, `<name>-3`, etc. until unique.
 
-### 5. Ensure `.claude/worktrees/` is gitignored
+The script handles: branch uniqueness (appends `-2`, `-3` if needed), `.claude/worktrees/` gitignore, worktree creation, `.worktreeinclude` file copying, session symlink, dependency detection, and state.json update (name, branch, worktree_path, phase, implementation timestamp).
+
+Read the JSON output:
+
+- `branch`: the actual branch name (may differ from input if renamed)
+- `worktree_path`: absolute path to the worktree
+- `dependency_install_cmd`: command to install dependencies (or null if none detected)
+- `worktreeinclude_copied` / `worktreeinclude_skipped`: which files were copied or skipped
+
+**GATE:** If exit code is non-zero, show the error and stop.
+
+### 4. Install dependencies
+
+If `dependency_install_cmd` from the script output is not null, run it:
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-git check-ignore -q "$REPO_ROOT/.claude/worktrees" 2>/dev/null || echo '.claude/worktrees/' >> "$REPO_ROOT/.gitignore"
+<dependency_install_cmd from JSON output>
 ```
 
-### 6. Create the worktree
-
-```bash
-mkdir -p "$REPO_ROOT/.claude/worktrees"
-WORKTREE_PATH="$REPO_ROOT/.claude/worktrees/<BRANCH>"
-git worktree add "$WORKTREE_PATH" -b <BRANCH>
-```
-
-This follows Claude Code's default worktree location convention.
-
-### 6a. Copy gitignored files via `.worktreeinclude`
-
-If a `.worktreeinclude` file exists at the repo root, it lists gitignored files that should be copied to new worktrees (using `.gitignore` syntax). For example:
-
-```text
-.env
-.env.local
-data/
-```
-
-Copy each matching file/directory from the main repo into the worktree. If `.worktreeinclude` does not exist, skip this step.
-
-### 6b. Symlink session folder into worktree
-
-```bash
-mkdir -p "$WORKTREE_PATH/.code-sessions"
-ln -sf "$REPO_ROOT/.code-sessions/<SESSION_ID>" "$WORKTREE_PATH/.code-sessions/current"
-```
-
-This lets all skills running in the worktree find the session via `.code-sessions/current/` without knowing the random ID.
-
-### 9. Install dependencies
-
-Detect the project's dependency manager and install:
-- If `uv.lock` exists: `cd "$WORKTREE_PATH" && uv sync`
-- If `package-lock.json` exists: `cd "$WORKTREE_PATH" && npm ci`
-- If `yarn.lock` exists: `cd "$WORKTREE_PATH" && yarn install --frozen-lockfile`
-- Otherwise: skip
-
-### 10. Update session state
-
-Update `state.json`:
-- `branch`: the branch name
-- `worktree_path`: the full worktree path
-- `phase`: `"implementing"`
-
-### 11. Write spec and plan files
+### 5. Write spec and plan files
 
 Determine the docs directory. Default convention:
-```
+
+```text
 docs/implementation/<yyyymmdd>-<session-name>/
 ```
+
 where `<yyyymmdd>` is from `start_of_session_timestamp` in state.json.
 
 The project can override this convention via its CLAUDE.md instructions.
 
 Create the directory and write:
+
 - `<yyyymmdd>-<session-name>-spec.md` — the *what*: requirements, API design, data model, behavior, constraints. Synthesized from the planning conversation.
 - `<yyyymmdd>-<session-name>-plan.md` — the *how*: implementation steps, layers, migrations, tests.
 
-### 12. Commit spec and plan
+### 6. Commit spec and plan
 
 ```bash
 cd "$WORKTREE_PATH"
 git add docs/implementation/
 git commit -m "docs: add spec and plan for <session-name>"
 ```
+
 Use the project's commit authorship conventions if defined in CLAUDE.md.
 
-### 13. Begin implementation
+### 7. Print a summary before starting work
+
+- Session ID: `<SESSION_ID>`
+- Session name: `<name>`
+- Worktree: `<worktree_path from script output>`
+- Branch: `<branch from script output>`
+- Spec: `<spec-file-path>`
+- Plan: `<plan-file-path>`
+
+### 8. Begin implementation
 
 Work through the plan step by step in the worktree. All file paths are relative to the worktree root.
 
 **Rules:**
+
 - **Red/green TDD:** Write tests first. See them fail. Then write the implementation to make them pass. This is mandatory.
 - **Commit often.** After each significant, self-contained change (new module, completed layer, passing tests). Each commit should leave the codebase in a coherent state.
 - **All other rules** come from the project's CLAUDE.md and project-level skills.
 - Use **TodoWrite** to track progress through plan items.
-
-### 14. Print a summary before starting work
-
-- Session ID: `<SESSION_ID>`
-- Session name: `<name>`
-- Worktree: `$REPO_ROOT/.claude/worktrees/<branch>`
-- Branch: `<branch>`
-- Spec: `<spec-file-path>`
-- Plan: `<plan-file-path>`
