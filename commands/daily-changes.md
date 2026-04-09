@@ -5,9 +5,58 @@ Works in any git repository. Project-specific category mappings can be defined i
 ## Arguments
 
 `$ARGUMENTS` — one of:
+
 - **Empty** (catch-up mode): generate all missing days from the last finalized document through today
 - **`YYYY-MM-DD`**: generate for a single date
 - **`--from YYYY-MM-DD --to YYYY-MM-DD`**: generate for an explicit date range
+- **`--quick-check`**: report how many days are behind on daily changes and offer to generate them (see Quick-Check Mode below)
+
+## Quick-Check Mode
+
+When `$ARGUMENTS` is `--quick-check` (or the user says "quick check"):
+
+1. **Read the last-check state:**
+
+   ```bash
+   REPO_ROOT=$(git rev-parse --show-toplevel)
+   LAST_CHECK_FILE="$REPO_ROOT/docs/changes/.last_check"
+   ```
+
+   If `.last_check` exists, read it — it contains two lines: a UTC ISO timestamp and a commit hash.
+   If it doesn't exist, treat as never checked (use the repo's first commit as baseline).
+
+2. **Count days with commits since last check:**
+
+   ```bash
+   # If .last_check exists, use the commit hash for efficiency:
+   DAYS=$(git log <COMMIT_HASH>..HEAD --format="%ad" --date=short | sort -u | wc -l | tr -d ' ')
+   # If .last_check doesn't exist:
+   DAYS=$(git log --format="%ad" --date=short | sort -u | wc -l | tr -d ' ')
+   ```
+
+3. **Report and offer:**
+
+   - If `DAYS` is 0: print "Daily changes are up to date." and stop.
+   - If `DAYS` > 0: print "You're **N** day(s) behind on daily changes. Want me to generate them?"
+   - If the user says yes, run the normal catch-up flow (steps 1-3 below).
+   - If this was triggered automatically (e.g., from end-session step 13), just print the status and offer — do NOT auto-generate without asking.
+
+4. **Update `.last_check`** (always, even if 0 days behind):
+
+   ```bash
+   LAST_HASH=$(git log -1 --format="%H")
+   LAST_TS=$(git log -1 --format="%aI")
+   mkdir -p "$REPO_ROOT/docs/changes"
+   printf '%s\n%s\n' "$LAST_TS" "$LAST_HASH" > "$LAST_CHECK_FILE"
+   ```
+
+5. **Ensure `.last_check` is gitignored:**
+
+   ```bash
+   grep -qxF 'docs/changes/.last_check' "$REPO_ROOT/.gitignore" 2>/dev/null || echo 'docs/changes/.last_check' >> "$REPO_ROOT/.gitignore"
+   ```
+
+**After any normal daily-changes run** (catch-up, single date, or range), also update `.last_check` using step 4 above.
 
 ## Steps
 
@@ -70,3 +119,16 @@ Print a summary of all documents generated:
 |------|------|--------|
 | 2026-02-20 | `2026/20260220-changes-apis.md` | Generated |
 | 2026-02-21 | `2026/20260221-changes-apis-DRAFT.md` | Draft |
+
+### 4. Update `.last_check`
+
+After generating documents, update the last-check state so future quick-checks know where to start:
+
+```bash
+LAST_HASH=$(git log -1 --format="%H")
+LAST_TS=$(git log -1 --format="%aI")
+mkdir -p "$REPO_ROOT/docs/changes"
+printf '%s\n%s\n' "$LAST_TS" "$LAST_HASH" > "$REPO_ROOT/docs/changes/.last_check"
+```
+
+Ensure it's gitignored (see Quick-Check Mode step 5).
