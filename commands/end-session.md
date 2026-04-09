@@ -25,8 +25,8 @@ No arguments required.
 
 Run `git status --porcelain`. If non-empty:
 
-- Review each uncommitted file. Stage and commit with a proper message if the intent is clear.
-- If unsure about any files, **ask the user** before proceeding. Do NOT silently discard or ignore files.
+- Only commit changes **you made** during this session. If you don't recognize a change or don't know where it came from, **stop and ask the user** about it.
+- Do NOT silently discard, ignore, or commit unfamiliar files.
 - **Do NOT proceed to step 2 until `git status --porcelain` is empty.**
 
 **1b. Ensure tests pass:**
