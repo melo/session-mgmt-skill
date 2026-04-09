@@ -10,87 +10,46 @@ No arguments required. A random session ID is generated automatically.
 
 ## Steps
 
-1. **Determine the repo root:**
-   ```bash
-   REPO_ROOT=$(git rev-parse --show-toplevel)
-   ```
-
-2. **GATE — Run the test suite before anything else.**
+1. **GATE — Run the test suite before anything else.**
 
    Unless the user explicitly said something like "I need a new session to fix the tests" or "session to fix failing tests", you MUST run the project's test suite now.
 
-   - Look at the project's CLAUDE.md or standard conventions to find the test command (e.g., `make test`, `pytest`, `npm test`, `go test ./...`, etc.).
-   - Run the tests from `$REPO_ROOT`.
+   - **Finding the test command** — check these sources in order:
+     1. CLAUDE.md — look for a test command or test section
+     2. Makefile — look for a `test` target (`make test`)
+     3. `package.json` — look for `scripts.test` (`npm test`)
+     4. `pyproject.toml` or `setup.cfg` — if pytest is a dependency, use `pytest`
+     5. `Cargo.toml` — use `cargo test`
+     6. `go.mod` — use `go test ./...`
+     7. If none found, ask the user for the test command. Do NOT skip the gate.
+   - Run the tests from the repo root.
    - **If tests fail:** STOP. Do NOT proceed with session creation. Print:
      > Tests are not passing. I can't start a new session on a broken test suite.
      > Fix the failing tests first, or say "I need a new session to fix the tests" to bypass this check.
    - **If tests pass:** Continue to the next step.
    - **If the user triggered the "fix the tests" escape hatch:** Skip this step entirely and proceed normally.
 
-3. **Generate a session ID** in the format `<yyyymmdd>-<6-char-hex>`:
+2. **Run the initialization script:**
+
    ```bash
-   SESSION_ID="$(date -u +%Y%m%d)-$(openssl rand -hex 3)"
+   python3 ~/.claude/skills/session-mgmt-skill/scripts/session_init.py \
+     [--backlog-item "<user's backlog reference>"] \
+     --repo-root "$(git rev-parse --show-toplevel)"
    ```
 
-4. **Create the session folder:**
-   ```bash
-   mkdir -p "$REPO_ROOT/.code-sessions/$SESSION_ID"
-   ```
+   Read the JSON output:
 
-5. **Ensure `.code-sessions/` is in `.gitignore`:**
-   Check if `.code-sessions/` already appears in `$REPO_ROOT/.gitignore`. If not, append it:
-   ```bash
-   grep -qxF '.code-sessions/' "$REPO_ROOT/.gitignore" 2>/dev/null || echo '.code-sessions/' >> "$REPO_ROOT/.gitignore"
-   ```
-   Do the same for `.dockerignore` if it exists.
+   - **Exit code 0:** Success. Extract `session_id`, `session_dir`, `timestamp`, and `backlog_item` from the output.
+   - **Exit code 2:** Ambiguous backlog match. The output contains `ambiguous_matches` — show them to the user and ask which one to use. Re-run the script with the specific ID.
+   - **Exit code 1:** Fatal error. Show the error and stop.
 
-6. **Capture the current UTC timestamp** (Claude does not know the current time — you MUST use a bash command):
-   ```bash
-   SESSION_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-   ```
+   If the output has `errors` with a "No backlog item found" message, inform the user and proceed without a backlog item.
 
-7. **Check for backlog item reference.**
+3. **CRITICAL — Remember the session ID.** You must retain the value of `session_id` from the script output for the entire conversation. Never lose it. You will need it when `/implement` runs later.
 
-   If the user mentioned a backlog item when starting the session (by ID, title, or description — e.g., "start a session on the webhook retry item", "start session on abc123"):
+4. **Enter plan mode** if not already in plan mode.
 
-   a. Find the item in `$REPO_ROOT/.code-sessions/backlog/`. Search by ID first, then by title match across all `item.json` files.
-
-   b. Update the backlog item:
-      ```bash
-      TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      jq --arg sid "$SESSION_ID" --arg ts "$TS" \
-        '.status = "in-progress" | .active_session = $sid | .updated_at = $ts' \
-        "$REPO_ROOT/.code-sessions/backlog/$ITEM_ID/item.json" > /tmp/item_tmp.json \
-        && mv /tmp/item_tmp.json "$REPO_ROOT/.code-sessions/backlog/$ITEM_ID/item.json"
-      ```
-
-   c. Save the item ID as `BACKLOG_ITEM_ID` for use in state.json below.
-
-   d. Read the item's `title`, `description`, and `source.context` — these will pre-seed the braindump.
-
-   If no backlog item was referenced, set `BACKLOG_ITEM_ID` to `null`.
-
-8. **Write `state.json`** (use `$SESSION_TS` for the start timestamp):
-   ```json
-   {
-     "id": "<SESSION_ID>",
-     "name": null,
-     "phase": "braindump",
-     "prompts": [],
-     "start_of_session_timestamp": "<SESSION_TS>",
-     "start_of_implementation_timestamp": null,
-     "end_of_session_timestamp": null,
-     "branch": null,
-     "worktree_path": null,
-     "backlog_item_id": "<BACKLOG_ITEM_ID or null>"
-   }
-   ```
-
-9. **CRITICAL — Remember the session ID.** You must retain the value of `SESSION_ID` for the entire conversation. Never lose it. You will need it when `/implement` runs later.
-
-10. **Enter plan mode** if not already in plan mode.
-
-11. **Print a short confirmation:**
+5. **Print a short confirmation:**
 
    If started from a backlog item:
    > Session `<SESSION_ID>` started from backlog item `<ITEM_ID>` — "<title>".
@@ -105,7 +64,7 @@ No arguments required. A random session ID is generated automatically.
    If started without a backlog item:
    > Session `<SESSION_ID>` started. I'm in braindump mode — go ahead and dump your ideas. I'll listen without interrupting. When you're ready to start planning, say "let's start planning".
 
-12. **STOP.** After printing the confirmation, your turn is over. Do NOT launch any agents, do NOT explore the codebase, do NOT read files. Just wait for the user to speak. The braindump phase (below) overrides the plan-mode 5-phase workflow until the user explicitly transitions to planning. Even when started from a backlog item, ALWAYS enter braindump — never skip to planning.
+6. **STOP.** After printing the confirmation, your turn is over. Do NOT launch any agents, do NOT explore the codebase, do NOT read files. Just wait for the user to speak. The braindump phase (below) overrides the plan-mode 5-phase workflow until the user explicitly transitions to planning. Even when started from a backlog item, ALWAYS enter braindump — never skip to planning.
 
 ## Braindump phase
 

@@ -120,7 +120,7 @@ Each session is tracked in `$REPO_ROOT/.code-sessions/<yyyymmdd>-<hex>/state.jso
   "start_of_implementation_timestamp": "2026-02-23T12:30:00Z",
   "end_of_session_timestamp": "2026-02-23T14:00:00Z",
   "branch": "feature-name",
-  "worktree_path": ".worktrees/feature-name",
+  "worktree_path": ".claude/worktrees/feature-name",
   "backlog_item_id": null
 }
 ```
@@ -141,8 +141,8 @@ Items have status `open`, `in-progress`, `archived`, or `cancelled`. Only `open`
 
 ### Worktrees
 
-- Live in `$REPO_ROOT/.worktrees/<branch>` (project-local, gitignored)
-- Symlink `.env`, `.legacy_env`, and `data/` from the main workspace
+- Live in `$REPO_ROOT/.claude/worktrees/<branch>` (Claude Code's default location, gitignored)
+- Copy gitignored files listed in `.worktreeinclude` from the main workspace
 - Get their own dependency installation (`.venv`, `node_modules`, etc.)
 - Share the same database, cache, and infrastructure
 - List active worktrees: `git worktree list`
