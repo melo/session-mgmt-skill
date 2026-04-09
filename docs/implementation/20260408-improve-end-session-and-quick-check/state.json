@@ -1,0 +1,16 @@
+{
+  "id": "20260408-916fc9",
+  "name": "improve-end-session-and-quick-check",
+  "phase": "implementing",
+  "prompts": [
+    {
+      "timestamp": "2026-04-09T05:06:02Z",
+      "content": "Updates to session mgmt skill: 1) END SESSION dirty worktree guard 2) END SESSION auto quick-check 3) DAILY CHANGES quick check mode with .last_check file"
+    }
+  ],
+  "start_of_session_timestamp": "2026-04-08T22:21:16Z",
+  "start_of_implementation_timestamp": "2026-04-09T05:12:15Z",
+  "end_of_session_timestamp": "2026-04-09T06:06:15Z",
+  "branch": "improve-end-session-and-quick-check-4",
+  "worktree_path": "/Users/melo/projects/claude_personality/eng/skills/session-mgmt-skill/.worktrees/improve-end-session-and-quick-check-4"
+}
