@@ -19,7 +19,14 @@ No arguments required. A random session ID is generated automatically.
 
    Unless the user explicitly said something like "I need a new session to fix the tests" or "session to fix failing tests", you MUST run the project's test suite now.
 
-   - Look at the project's CLAUDE.md or standard conventions to find the test command (e.g., `make test`, `pytest`, `npm test`, `go test ./...`, etc.).
+   - **Finding the test command** — check these sources in order:
+     1. CLAUDE.md — look for a test command or test section
+     2. Makefile — look for a `test` target (`make test`)
+     3. `package.json` — look for `scripts.test` (`npm test`)
+     4. `pyproject.toml` or `setup.cfg` — if pytest is a dependency, use `pytest`
+     5. `Cargo.toml` — use `cargo test`
+     6. `go.mod` — use `go test ./...`
+     7. If none found, ask the user for the test command. Do NOT skip the gate.
    - Run the tests from `$REPO_ROOT`.
    - **If tests fail:** STOP. Do NOT proceed with session creation. Print:
      > Tests are not passing. I can't start a new session on a broken test suite.
@@ -54,6 +61,15 @@ No arguments required. A random session ID is generated automatically.
    If the user mentioned a backlog item when starting the session (by ID, title, or description — e.g., "start a session on the webhook retry item", "start session on abc123"):
 
    a. Find the item in `$REPO_ROOT/.code-sessions/backlog/`. Search by ID first, then by title match across all `item.json` files.
+
+   **GATE — Disambiguate matches:**
+   - If exactly one item matches: proceed.
+   - If multiple items match the title search, list them and ask the user to pick one:
+     > "Multiple backlog items match '`search`':
+     > 1. `abc123` — "Add retry logic to webhooks" (high, rank #1)
+     > 2. `def456` — "Add retry for email notifications" (medium, rank #4)
+     > Which one?"
+   - If no items match: tell the user "No backlog item found matching '`search`'. Starting session without a backlog item." and set `BACKLOG_ITEM_ID` to `null`.
 
    b. Update the backlog item:
       ```bash

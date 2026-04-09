@@ -25,9 +25,20 @@ No arguments required.
 
 Run `git status --porcelain`. If non-empty:
 
-- Only commit changes **you made** during this session. If you don't recognize a change or don't know where it came from, **stop and ask the user** about it.
+- Collect the list of files touched by this branch's commits:
+
+  ```bash
+  BRANCH_FILES=$(git log main..<BRANCH> --name-only --format="" | sort -u)
+  ```
+
+- For each file in `git status --porcelain`:
+  - If the file is in `$BRANCH_FILES` or under the session's `docs/implementation/` directory: stage and commit it.
+  - Otherwise: **stop and ask the user**:
+    > "These files have uncommitted changes but were not part of any commit on this branch:
+    > `<list>`
+    > Should I commit them, discard them, or leave them?"
 - Do NOT silently discard, ignore, or commit unfamiliar files.
-- **Do NOT proceed to step 2 until `git status --porcelain` is empty.**
+- **GATE: Do NOT proceed to step 2 until `git status --porcelain` is empty.**
 
 **1b. Ensure tests pass:**
 
@@ -106,24 +117,28 @@ Parse it to get `https://github.com/<owner>/<repo>`. Handle both SSH (`git@githu
 | ... | ... |
 ```
 
-### 6. Copy state.json to docs
+### 6. Update session state
+
+Set `phase` to `"done"` in `state.json`. Do NOT delete the session folder — it serves as a historical record.
+
+**GATE:** Verify that `state.json` now has `"phase": "done"` and `"end_of_session_timestamp"` is set before proceeding.
+
+### 7. Copy state.json to docs
 
 Copy the session's `state.json` into the same `docs/implementation/<yyyymmdd>-<session-name>/` directory so it is committed alongside the spec, plan, and report:
+
 ```bash
 cp "$REPO_ROOT/.code-sessions/current/state.json" "<docs-path>/state.json"
 ```
 
-### 7. Commit report and state.json
+### 8. Commit report and state.json
 
 ```bash
 git add docs/implementation/
 git commit -m "docs: add implementation report for <session-name>"
 ```
+
 Use the project's commit authorship conventions if defined in CLAUDE.md.
-
-### 8. Update session state
-
-Set `phase` to `"done"` in `state.json`. Do NOT delete the session folder — it serves as a historical record.
 
 ### 8b. Process backlog item (if applicable)
 
@@ -160,7 +175,19 @@ DOCS_DIR="<docs/implementation/yyyymmdd-session-name>"  # same directory as spec
 
 **Process follow-up items (if the user mentioned any):**
 
-If the user said something like "end session, we should follow up with X and Y", create new backlog items for each follow-up using the logic from `backlog.md` — `/backlog add` with:
+Parse follow-up items from the user's end-session message. Each distinct follow-up becomes a separate backlog item. Examples:
+
+- "end session, follow up with retry backoff and monitoring dashboard" → 2 items
+- "end session, we still need to handle edge cases" → 1 item
+
+If the user's phrasing is too vague to extract distinct items, ask:
+> "You mentioned follow-ups. Can you list them so I can add them to the backlog?"
+
+For each follow-up, create a backlog item using the logic from `backlog.md` — `/backlog add` with:
+
+- `title`: extracted from the user's phrasing (concise, descriptive)
+- `description`: brief context from the completed session
+- `importance`: `medium` (default; ask the user if they want to adjust)
 - `source.type`: `"follow-up"`
 - `source.follow_up_from`: `$BACKLOG_ITEM_ID`
 - `source.session_id`: the current session ID
@@ -209,8 +236,9 @@ git branch -d <BRANCH>
 ### 11. Prune old sessions
 
 Scan `.code-sessions/` for folders where the `yyyymmdd` prefix in the folder name is older than 6 months. Delete those folders:
+
 ```bash
-SIX_MONTHS_AGO=$(date -u -d '6 months ago' +%Y%m%d)
+SIX_MONTHS_AGO=$(python3 -c "from datetime import date,timedelta;print((date.today()-timedelta(days=180)).strftime('%Y%m%d'))")
 for dir in "$MAIN_WORKSPACE"/.code-sessions/*/; do
   FOLDER_DATE=$(basename "$dir" | cut -c1-8)
   if [ "$FOLDER_DATE" -lt "$SIX_MONTHS_AGO" ] 2>/dev/null; then

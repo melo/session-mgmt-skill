@@ -53,12 +53,17 @@ Read `branch` and `worktree_path` from `state.json`.
    ```bash
    git -C "$WORKTREE_PATH" status --porcelain
    ```
-   If there are uncommitted changes, warn the user:
-   > "Warning: There are uncommitted changes in the worktree that will be lost:"
-   > (show the list)
-   > "Continue with cancellation?"
+   If there are uncommitted changes, present the user with options:
+   > "There are uncommitted changes in the worktree that will be lost:
+   > `<list of files>`
+   >
+   > Options:
+   > 1. **Cancel anyway** — discard all uncommitted changes
+   > 2. **Commit first** — commit these changes before cancelling (recoverable via reflog for 30 days)
+   > 3. **Stash to main** — stash changes, switch to main, pop them there
+   > 4. **Abort cancellation** — keep the session active"
 
-   If the user says no, **STOP** without cancelling.
+   If the user picks option 4, **STOP** without cancelling.
 
 2. Determine the main workspace path:
    ```bash
@@ -110,7 +115,7 @@ The item stays in its original rank position in `index.json`. No dependency chan
 
 Scan `.code-sessions/` for folders where the `yyyymmdd` prefix in the folder name is older than 6 months. Delete those folders:
 ```bash
-SIX_MONTHS_AGO=$(date -u -d '6 months ago' +%Y%m%d)
+SIX_MONTHS_AGO=$(python3 -c "from datetime import date,timedelta;print((date.today()-timedelta(days=180)).strftime('%Y%m%d'))")
 for dir in "$MAIN_WORKSPACE"/.code-sessions/*/; do
   FOLDER_DATE=$(basename "$dir" | cut -c1-8)
   if [ "$FOLDER_DATE" -lt "$SIX_MONTHS_AGO" ] 2>/dev/null; then

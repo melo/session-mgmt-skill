@@ -17,9 +17,13 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 # Find state.json files where phase is "braindump" or "planning"
 ls -1d "$REPO_ROOT"/.code-sessions/*/state.json 2>/dev/null | sort -r | head -5
 ```
-Read each and pick the one with `phase` of `"braindump"` or `"planning"` and the most recent `start_of_session_timestamp`.
+Read each and pick those with `phase` of `"braindump"` or `"planning"`.
 
-If no active session found, tell the user: "No active session found. Use /start-session first." and **stop**.
+**GATE — Disambiguate if needed:**
+
+- If exactly one active session found: use it.
+- If multiple found: list them (ID, name, start timestamp, phase) and ask the user which one to implement.
+- If none found: tell the user "No active session found. Use /start-session first." and **stop**.
 
 ### 2. Determine the session name
 
@@ -44,42 +48,42 @@ git branch --list <name>
 ```
 If the branch exists, try `<name>-2`, `<name>-3`, etc. until unique.
 
-### 5. Ensure `.worktrees/` is gitignored
+### 5. Ensure `.claude/worktrees/` is gitignored
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-git check-ignore -q "$REPO_ROOT/.worktrees" 2>/dev/null || echo '.worktrees/' >> "$REPO_ROOT/.gitignore"
+git check-ignore -q "$REPO_ROOT/.claude/worktrees" 2>/dev/null || echo '.claude/worktrees/' >> "$REPO_ROOT/.gitignore"
 ```
 
 ### 6. Create the worktree
 
 ```bash
-mkdir -p "$REPO_ROOT/.worktrees"
-WORKTREE_PATH="$REPO_ROOT/.worktrees/<BRANCH>"
+mkdir -p "$REPO_ROOT/.claude/worktrees"
+WORKTREE_PATH="$REPO_ROOT/.claude/worktrees/<BRANCH>"
 git worktree add "$WORKTREE_PATH" -b <BRANCH>
 ```
 
-### 6a. Check VSCode worktree exclusion
+This follows Claude Code's default worktree location convention.
 
-Check if `.devcontainer/devcontainer.json` exists and whether it already excludes `.worktrees/` from the file watcher (look for `files.watcherExclude` containing `.worktrees`). If not, recommend to the user:
+### 6a. Copy gitignored files via `.worktreeinclude`
 
-> "Consider adding `.worktrees/` to `files.watcherExclude` and `files.exclude` in your devcontainer.json to prevent VSCode from indexing worktree contents."
+If a `.worktreeinclude` file exists at the repo root, it lists gitignored files that should be copied to new worktrees (using `.gitignore` syntax). For example:
 
-### 7. Symlink gitignored files
-
-From the main repo root into the worktree. Skip any that don't exist:
-```bash
-for f in .env .legacy_env data; do
-  [ -e "$REPO_ROOT/$f" ] && ln -sf "$REPO_ROOT/$f" "$WORKTREE_PATH/$f"
-done
+```text
+.env
+.env.local
+data/
 ```
 
-### 8. Symlink session folder into worktree
+Copy each matching file/directory from the main repo into the worktree. If `.worktreeinclude` does not exist, skip this step.
+
+### 6b. Symlink session folder into worktree
 
 ```bash
 mkdir -p "$WORKTREE_PATH/.code-sessions"
 ln -sf "$REPO_ROOT/.code-sessions/<SESSION_ID>" "$WORKTREE_PATH/.code-sessions/current"
 ```
+
 This lets all skills running in the worktree find the session via `.code-sessions/current/` without knowing the random ID.
 
 ### 9. Install dependencies
@@ -134,7 +138,7 @@ Work through the plan step by step in the worktree. All file paths are relative 
 
 - Session ID: `<SESSION_ID>`
 - Session name: `<name>`
-- Worktree: `$REPO_ROOT/.worktrees/<branch>`
+- Worktree: `$REPO_ROOT/.claude/worktrees/<branch>`
 - Branch: `<branch>`
 - Spec: `<spec-file-path>`
 - Plan: `<plan-file-path>`

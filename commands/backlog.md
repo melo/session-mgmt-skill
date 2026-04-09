@@ -140,6 +140,16 @@ Read `index.json`, append the new ID to the `items` array (end of list = lowest 
 
 Unless the user specified a position (e.g., "add to the top of the backlog"), in which case insert at the specified position.
 
+### 5a. Verify consistency
+
+**GATE:** After writing `index.json`, verify the item appears in the index:
+
+```bash
+jq --arg id "$ITEM_ID" '.items | index($id)' "$BACKLOG_DIR/index.json"
+```
+
+If the result is `null`, the append failed. Retry the index update once. If it fails again, clean up the orphaned folder (`rm -rf "$BACKLOG_DIR/$ITEM_ID"`) and report the error to the user.
+
 ### 6. Confirm
 
 Print a short confirmation:
