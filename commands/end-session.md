@@ -17,36 +17,52 @@ No arguments required.
 
 ## Session Wrap-Up
 
-### 1. Find the session
+### 1. Pre-flight checks
+
+**GATE — The session MUST NOT end with a dirty worktree or failing tests.**
+
+**1a. Ensure all changes are committed:**
+
+Run `git status --porcelain`. If non-empty:
+
+- Only commit changes **you made** during this session. If you don't recognize a change or don't know where it came from, **stop and ask the user** about it.
+- Do NOT silently discard, ignore, or commit unfamiliar files.
+- **Do NOT proceed to step 2 until `git status --porcelain` is empty.**
+
+**1b. Ensure tests pass:**
+
+Run the project's test suite (look at CLAUDE.md or standard conventions for the test command).
+
+- **If tests fail:** STOP. Fix the failing tests, commit the fix, and re-run. If you cannot fix them, ask the user for guidance. Do NOT proceed until tests pass.
+- **If no test suite exists:** Skip this check.
+
+### 2. Find the session
 
 Read the session state from the worktree:
 ```bash
 STATE_FILE="$REPO_ROOT/.code-sessions/current/state.json"
 ```
+
 If the file doesn't exist, warn the user: "No session state found at .code-sessions/current/state.json. Proceeding without session tracking." Continue with the merge anyway — just skip the session-specific steps (timestamps, report).
 
-### 2. Record end timestamp
+### 3. Record end timestamp
 
 Capture the current UTC time via bash (Claude does not know the current time — you MUST use a command):
 ```bash
 END_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ```
+
 Set `end_of_session_timestamp` to `$END_TS` in `state.json`.
 
-### 3. Compute time breakdown
+### 4. Compute time breakdown
 
 From `state.json`, compute:
+
 - **Planning time:** `start_of_session_timestamp` → `start_of_implementation_timestamp`
 - **Implementation time:** `start_of_implementation_timestamp` → `end_of_session_timestamp`
 - **Total session time:** `start_of_session_timestamp` → `end_of_session_timestamp`
 
 Format each as `Xh Ym`. If a timestamp is null, show "N/A" for that phase.
-
-### 4. Commit uncommitted changes
-
-Run `git status --porcelain`. If non-empty:
-- Stage relevant files and commit with a proper message
-- If unsure about any files, ask the user
 
 ### 5. Generate implementation report
 
@@ -148,8 +164,6 @@ done
 
 ### 12. Print summary table
 
-This MUST be the last thing you output:
-
 | Item | Status |
 |------|--------|
 | **Session** | `<id>` (`.code-sessions/<id>`) |
@@ -161,6 +175,12 @@ This MUST be the last thing you output:
 | **Impl report** | `<path-to-impl-report.md>` |
 | **Sessions pruned** | N old sessions removed / None |
 | **Current state** | Back on `main` in `<main-workspace>` |
+
+### 13. Quick-check daily changes
+
+After printing the summary table, run the daily-changes command with `--quick-check`. This checks how many days are behind on daily changelog documents and offers to generate them.
+
+Read `./commands/daily-changes.md` and follow its quick-check instructions.
 
 ---
 

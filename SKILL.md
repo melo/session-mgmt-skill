@@ -5,7 +5,7 @@ description: >-
   implementation phases using git worktrees. Use when the user says
   "start a session", "new session", "end session", "cancel session",
   "implement the plan", "daily changes", "generate changelog",
-  "convert to PDF", "generate my changelog",
+  "convert to PDF", "generate my changelog", "quick check",
   "refresh changelog-categories.yml", "setup session management",
   or any similar phrasing. Manages the full lifecycle:
   /start-session → braindump → planning → /implement → code → /end-session.
@@ -64,11 +64,11 @@ Optional argument: if the user says "end session and deploy" or similar, pass `d
 
 ### Daily changes
 
-**Trigger:** User says "daily changes", "generate changelog", "generate my changelog", "what changed today", or similar.
+**Trigger:** User says "daily changes", "generate changelog", "generate my changelog", "what changed today", "quick check", or similar.
 
 **Action:** Read `./commands/daily-changes.md` and follow its instructions.
 
-Arguments are passed through: a date, a date range (`--from ... --to ...`), or empty for catch-up mode.
+Arguments are passed through: a date, a date range (`--from ... --to ...`), `--quick-check`, or empty for catch-up mode.
 
 ### PDF conversion
 
